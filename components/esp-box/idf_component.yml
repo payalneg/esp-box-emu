@@ -1,0 +1,17 @@
+dependencies:
+  espp/base_component: '>=1.0'
+  espp/codec: '>=1.0'
+  espp/display: '>=1.0'
+  espp/display_drivers: '>=1.0'
+  espp/gt911: '>=1.0'
+  espp/i2c: '>=1.0'
+  espp/icm42607: '>=1.0'
+  espp/input_drivers: '>=1.0'
+  espp/interrupt: '>=1.0'
+  espp/task: '>=1.0'
+  espp/tt21100: '>=1.0'
+  idf:
+    version: '>=5.0'
+description: ESP-BOX board support package (BSP) with Waveshare ESP32-S3-Touch-LCD-2.8 support
+targets:
+- esp32s3

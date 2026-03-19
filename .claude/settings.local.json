@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -r \"version0\\\\|version1\\\\|V0\\\\|V1\" /Users/alexey/work/my/esp-box-emu/components/box-emu --include=*.h --include=*.hpp --include=*.cpp)",
+      "Bash(grep -r \"waveshare\\\\|WAVESHARE\\\\|2.8\" /Users/alexey/work/my/esp-box-emu --include=*.h --include=*.cpp --include=*.md)",
+      "Bash(wc -l /Users/alexey/work/my/esp-box-emu/components/*/src/*.cpp)",
+      "Bash(ls -la /Users/alexey/work/my/esp-box-emu/managed_components/espp__*/include/)",
+      "WebSearch",
+      "WebFetch(domain:components.espressif.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(source /Users/alexey/.espressif/v5.5.3/esp-idf/export.sh)",
+      "Bash(idf.py build:*)",
+      "Bash(. /Users/alexey/.espressif/v5.5.3/esp-idf/export.sh)",
+      "Bash(export IDF_PYTHON_ENV_PATH=\"$HOME/.espressif/python_env/idf5.5_py3.13_env\")",
+      "Bash(export IDF_PYTHON_ENV_PATH=$HOME/.espressif/python_env/idf5.5_py3.13_env)",
+      "Bash(source ~/.espressif/v5.5.3/esp-idf/export.sh)",
+      "Bash(idf.py -D \"SDKCONFIG_DEFAULTS=\"\"sdkconfig.defaults;sdkconfig.defaults.waveshare28\"\"\" build)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(gh api:*)",
+      "Bash(python3 -c \"import json,sys; [print\\(x[''''name'''']\\) for x in json.load\\(sys.stdin\\)]\")",
+      "WebFetch(domain:spotpear.com)"
+    ]
+  }
+}

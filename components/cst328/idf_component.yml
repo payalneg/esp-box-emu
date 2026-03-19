@@ -1,0 +1,7 @@
+dependencies:
+  espp/base_peripheral: '>=1.0'
+  idf:
+    version: '>=5.0'
+description: CST328 capacitive touch controller driver
+targets:
+- esp32s3

@@ -6,6 +6,9 @@
 #include <esp_partition.h>
 #include <esp_vfs_fat.h>
 #include <sdmmc_cmd.h>
+#ifdef CONFIG_ESP_BOX_BOARD_WAVESHARE_28
+#include <driver/sdmmc_host.h>
+#endif
 
 #include <hal/usb_phy_types.h>
 #include <esp_private/usb_phy.h>
@@ -304,15 +307,28 @@ protected:
   // external I2c (peripherals)
   static constexpr auto external_i2c_port = I2C_NUM_1;
   static constexpr auto external_i2c_clock_speed = 400 * 1000;
+#ifdef CONFIG_ESP_BOX_BOARD_WAVESHARE_28
+  // Gamepad I2C (MCP23017) on Waveshare I2C pins
+  static constexpr gpio_num_t external_i2c_sda = GPIO_NUM_11;
+  static constexpr gpio_num_t external_i2c_scl = GPIO_NUM_10;
+#else
   static constexpr gpio_num_t external_i2c_sda = GPIO_NUM_41;
   static constexpr gpio_num_t external_i2c_scl = GPIO_NUM_40;
+#endif
 
-  // uSD card
+#ifdef CONFIG_ESP_BOX_BOARD_WAVESHARE_28
+  // uSD card via SDMMC 1-bit mode
+  static constexpr gpio_num_t sdcard_clk = GPIO_NUM_14;
+  static constexpr gpio_num_t sdcard_cmd = GPIO_NUM_17;
+  static constexpr gpio_num_t sdcard_d0  = GPIO_NUM_16;
+#else
+  // uSD card via SPI
   static constexpr gpio_num_t sdcard_cs = GPIO_NUM_10;
   static constexpr gpio_num_t sdcard_mosi = GPIO_NUM_11;
   static constexpr gpio_num_t sdcard_miso = GPIO_NUM_13;
   static constexpr gpio_num_t sdcard_sclk = GPIO_NUM_12;
   static constexpr auto sdcard_spi_num = SPI3_HOST;
+#endif
 
   static constexpr int num_rows_in_framebuffer = 30;
 

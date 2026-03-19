@@ -61,7 +61,9 @@ bool BoxEmu::initialize_box() {
     return false;
   }
 
+#ifndef CONFIG_ESP_BOX_BOARD_WAVESHARE_28
   // initialize the mute button to broadcast the mute state
+  // (Waveshare board has no mute button)
   logger_.info("Initializing mute button");
   mute_button_ = std::make_shared<espp::Button>(espp::Button::Config{
       .name = "mute button",
@@ -91,6 +93,7 @@ bool BoxEmu::initialize_box() {
   // update the mute state (since it's a flip-flop and may have been set if we
   // restarted without power loss)
   Bsp::get().mute(mute_button_->is_pressed());
+#endif
   return true;
 }
 
@@ -107,27 +110,33 @@ bool BoxEmu::initialize_sdcard() {
   logger_.info("Initializing SD card");
 
   esp_err_t ret;
-  // Options for mounting the filesystem. If format_if_mount_failed is set to
-  // true, SD card will be partitioned and formatted in case when mounting
-  // fails.
   esp_vfs_fat_sdmmc_mount_config_t mount_config;
   memset(&mount_config, 0, sizeof(mount_config));
   mount_config.format_if_mount_failed = false;
   mount_config.max_files = 5;
   mount_config.allocation_unit_size = 2 * 1024;
 
-  // Use settings defined above to initialize SD card and mount FAT filesystem.
-  // Note: esp_vfs_fat_sdmmc/sdspi_mount is all-in-one convenience functions.
-  // Please check its source code and implement error recovery when developing
-  // production applications.
+#ifdef CONFIG_ESP_BOX_BOARD_WAVESHARE_28
+  // Waveshare: SDMMC 1-bit mode
+  logger_.debug("Using SDMMC peripheral (1-bit mode)");
+
+  sdmmc_host_t host = SDMMC_HOST_DEFAULT();
+  host.flags = SDMMC_HOST_FLAG_1BIT;
+
+  sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
+  slot_config.clk = sdcard_clk;
+  slot_config.cmd = sdcard_cmd;
+  slot_config.d0  = sdcard_d0;
+  slot_config.width = 1;
+
+  logger_.debug("Mounting filesystem");
+  ret = esp_vfs_fat_sdmmc_mount(mount_point, &host, &slot_config, &mount_config, &sdcard_);
+#else
+  // ESP-BOX: SPI mode
   logger_.debug("Using SPI peripheral");
 
-  // By default, SD card frequency is initialized to SDMMC_FREQ_DEFAULT (20MHz)
-  // For setting a specific frequency, use host.max_freq_khz (range 400kHz - 20MHz for SDSPI)
-  // Example: for fixed frequency of 10MHz, use host.max_freq_khz = 10000;
   sdmmc_host_t host = SDSPI_HOST_DEFAULT();
   host.slot = sdcard_spi_num;
-  // host.max_freq_khz = 20 * 1000;
 
   spi_bus_config_t bus_cfg;
   memset(&bus_cfg, 0, sizeof(bus_cfg));
@@ -144,14 +153,13 @@ bool BoxEmu::initialize_sdcard() {
     return false;
   }
 
-  // This initializes the slot without card detect (CD) and write protect (WP) signals.
-  // Modify slot_config.gpio_cd and slot_config.gpio_wp if your board has these signals.
   sdspi_device_config_t slot_config = SDSPI_DEVICE_CONFIG_DEFAULT();
   slot_config.gpio_cs = sdcard_cs;
   slot_config.host_id = host_id;
 
   logger_.debug("Mounting filesystem");
   ret = esp_vfs_fat_sdspi_mount(mount_point, &host, &slot_config, &mount_config, &sdcard_);
+#endif
 
   if (ret != ESP_OK) {
     if (ret == ESP_FAIL) {

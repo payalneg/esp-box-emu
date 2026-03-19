@@ -30,6 +30,7 @@ idf_component_register(
   "serialization"
   "statistics"
   "max1704x"
+  "sdmmc"
   "esp-box"
   "pool_allocator"
   )

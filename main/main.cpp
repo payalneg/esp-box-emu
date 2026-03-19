@@ -1,3 +1,4 @@
+// #define TOUCH_TEST_ENABLED
 #include <sdkconfig.h>
 
 #include <chrono>
@@ -17,7 +18,55 @@
 #include "rom_info.hpp"
 #include "statistics.hpp"
 
+#include "lvgl.h"
+#include "esp_heap_caps.h"
+
 using namespace std::chrono_literals;
+
+#ifdef TOUCH_TEST_ENABLED
+static void touch_test() {
+  lv_obj_t *scr = lv_scr_act();
+  lv_obj_set_style_bg_color(scr, lv_color_white(), 0);
+  lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+  lv_obj_remove_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
+
+  fmt::print("[TOUCH_TEST] Touch the screen. Test runs for 30 seconds.\n");
+  auto &box = BoxEmu::Bsp::get();
+  int dot_count = 0;
+  int16_t last_x = -10, last_y = -10;
+  auto start = xTaskGetTickCount();
+  while ((xTaskGetTickCount() - start) < pdMS_TO_TICKS(30000)) {
+    box.update_touch();
+    uint8_t num_points;
+    uint16_t x, y;
+    uint8_t btn;
+    box.touchpad_read(&num_points, &x, &y, &btn);
+    if (num_points > 0 && dot_count < 500) {
+      // Only draw if moved at least 3 pixels from last dot
+      int dx = (int)x - last_x;
+      int dy = (int)y - last_y;
+      if (dx * dx + dy * dy >= 9) {
+        lv_obj_t *dot = lv_obj_create(scr);
+        lv_obj_remove_flag(dot, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_size(dot, 6, 6);
+        lv_obj_set_pos(dot, x - 3, y - 3);
+        lv_obj_set_style_bg_color(dot, lv_color_black(), 0);
+        lv_obj_set_style_radius(dot, 3, 0);
+        lv_obj_set_style_border_width(dot, 0, 0);
+        lv_obj_set_style_pad_all(dot, 0, 0);
+        last_x = x;
+        last_y = y;
+        dot_count++;
+      }
+    }
+    lv_task_handler();
+    vTaskDelay(pdMS_TO_TICKS(16));
+  }
+
+  lv_obj_clean(scr);
+  fmt::print("[TOUCH_TEST] Done.\n");
+}
+#endif
 
 extern "C" void app_main(void) {
   espp::Logger logger({.tag = "esp-box-emu", .level = espp::Logger::Verbosity::INFO});
@@ -62,6 +111,10 @@ extern "C" void app_main(void) {
     logger.warn("Failed to initialize haptics!");
     logger.warn("This may happen if the gamepad is not connected.");
   }
+
+#ifdef TOUCH_TEST_ENABLED
+  touch_test();
+#endif
 
   logger.info("initializing gui...");
 
