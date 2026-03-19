@@ -89,7 +89,6 @@ bool EspBox::update_cst328() {
   if (!cst328_) {
     return false;
   }
-  static int zero_count = 0;
   std::error_code ec;
   bool new_data = cst328_->update(ec);
   if (ec) {
@@ -99,6 +98,7 @@ bool EspBox::update_cst328() {
     }
     return false;
   }
+  static int zero_count = 0;
   if (new_data) {
     zero_count = 0;
     TouchpadData temp_data;
@@ -111,8 +111,8 @@ bool EspBox::update_cst328() {
     touchpad_data_ = temp_data;
     return true;
   }
-  // No data — only clear after several consecutive zero reads
-  // (CST328 needs time to re-sample after acknowledge)
+  // No new data — after several consecutive empty polls, treat as released.
+  // With 30ms polling this means ~90ms delay before release is detected.
   if (++zero_count >= 3) {
     std::lock_guard<std::recursive_mutex> lock(touchpad_data_mutex_);
     touchpad_data_ = {};

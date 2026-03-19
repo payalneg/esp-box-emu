@@ -61,6 +61,17 @@ bool BoxEmu::initialize_box() {
     return false;
   }
 
+#ifdef CONFIG_ESP_BOX_BOARD_WAVESHARE_28
+  // CST328 may not generate an interrupt on touch release,
+  // so poll periodically to ensure LVGL sees the RELEASED state.
+  touch_poll_timer_ = std::make_shared<espp::HighResolutionTimer>(espp::HighResolutionTimer::Config{
+      .name = "Touch poll timer",
+      .callback = [this]() {
+        Bsp::get().update_touch();
+      }});
+  touch_poll_timer_->periodic(30 * 1000); // 30ms
+#endif
+
 #ifndef CONFIG_ESP_BOX_BOARD_WAVESHARE_28
   // initialize the mute button to broadcast the mute state
   // (Waveshare board has no mute button)

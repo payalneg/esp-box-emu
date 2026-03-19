@@ -356,6 +356,7 @@ protected:
   std::shared_ptr<InputBase> input_;
   std::shared_ptr<espp::KeypadInput> keypad_;
   std::shared_ptr<espp::HighResolutionTimer> input_timer_;
+  std::shared_ptr<espp::HighResolutionTimer> touch_poll_timer_;
 
   // battery
   std::atomic<bool> battery_comms_good_{true};
