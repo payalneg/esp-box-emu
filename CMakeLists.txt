@@ -2,6 +2,16 @@
 # in this exact order for cmake to work correctly
 cmake_minimum_required(VERSION 3.15)
 
+# Board target selection: use -DTARGET_WAVESHARE=1 to build for Waveshare
+# Set to 0 and rebuild for ESP-BOX
+if(NOT DEFINED TARGET_WAVESHARE)
+  set(TARGET_WAVESHARE 1)
+endif()
+if(TARGET_WAVESHARE)
+  set(SDKCONFIG_DEFAULTS "sdkconfig.defaults;sdkconfig.defaults.waveshare28")
+  add_compile_definitions(TARGET_WAVESHARE)
+endif()
+
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 # add the component directories that we want to use
