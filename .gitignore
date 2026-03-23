@@ -39,3 +39,5 @@ flash_data/
 *-backups/
 managed_components/
 dependencies.lock
+
+.cache/
