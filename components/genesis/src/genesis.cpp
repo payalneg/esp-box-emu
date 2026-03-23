@@ -136,6 +136,41 @@ extern "C" void gwenesis_io_get_buttons()
 
 /// END GWENESIS EMULATOR
 
+// --- Genesis per-module profiling ---
+struct GenesisProfile {
+  uint64_t m68k_us;
+  uint64_t z80_us;
+  uint64_t vdp_us;
+  uint64_t ym2612_us;
+  uint64_t sn76489_us;
+  uint64_t audio_mix_us;
+  uint64_t frame_push_us;
+  uint64_t input_us;
+  uint64_t total_us;
+  int frame_count;
+
+  void reset() { *this = {}; }
+
+  void print() const {
+    if (frame_count == 0) return;
+    float n = frame_count;
+    fmt::print("=== Genesis profile (avg over {} frames, us) ===\n", frame_count);
+    fmt::print("  M68K:       {:.0f}\n", m68k_us / n);
+    fmt::print("  Z80:        {:.0f}\n", z80_us / n);
+    fmt::print("  VDP:        {:.0f}\n", vdp_us / n);
+    fmt::print("  YM2612:     {:.0f}\n", ym2612_us / n);
+    fmt::print("  SN76489:    {:.0f}\n", sn76489_us / n);
+    fmt::print("  Audio mix:  {:.0f}\n", audio_mix_us / n);
+    fmt::print("  Frame push: {:.0f}\n", frame_push_us / n);
+    fmt::print("  Input:      {:.0f}\n", input_us / n);
+    fmt::print("  TOTAL:      {:.0f}\n", total_us / n);
+    fmt::print("================================================\n");
+  }
+};
+
+static GenesisProfile g_profile = {};
+static constexpr int PROFILE_INTERVAL_FRAMES = 120; // print every ~2 seconds at 60fps
+
 void reset_genesis() {
   reset_emulation();
 }
@@ -178,7 +213,14 @@ void init_genesis(uint8_t *romdata, size_t rom_data_size) {
 
 void IRAM_ATTR run_genesis_rom() {
   auto start = esp_timer_get_time();
+
+  // --- Profiling accumulators for this frame ---
+  uint64_t prof_m68k = 0, prof_z80 = 0, prof_vdp = 0;
+  uint64_t prof_ym2612 = 0, prof_sn76489 = 0;
+  uint64_t t0, t1;
+
   // handle input here (see system.h and use input.pad and input.system)
+  t0 = esp_timer_get_time();
   static GamepadState previous_state = {};
   auto state = BoxEmu::get().gamepad_state();
 
@@ -211,6 +253,8 @@ void IRAM_ATTR run_genesis_rom() {
   }
 
   previous_state = state;
+  t1 = esp_timer_get_time();
+  uint64_t prof_input = t1 - t0;
 
   bool drawFrame = (frame_counter++ % frameskip) == 0;
 
@@ -239,8 +283,15 @@ void IRAM_ATTR run_genesis_rom() {
   while (scan_line < lines_per_frame) {
     system_clock += _vdp_cycles_per_line;
 
+    t0 = esp_timer_get_time();
     m68k_run(system_clock);
+    t1 = esp_timer_get_time();
+    prof_m68k += t1 - t0;
+
+    t0 = t1;
     z80_run(system_clock);
+    t1 = esp_timer_get_time();
+    prof_z80 += t1 - t0;
 
     /* Audio */
     /*  GWENESIS_AUDIO_ACCURATE:
@@ -248,13 +299,24 @@ void IRAM_ATTR run_genesis_rom() {
      *    =0 : line  accurate mode. audio is refreshed every lines.
      */
     if (GWENESIS_AUDIO_ACCURATE == 0 && sound_enabled) {
+      t0 = esp_timer_get_time();
       gwenesis_SN76489_run(system_clock);
+      t1 = esp_timer_get_time();
+      prof_sn76489 += t1 - t0;
+
+      t0 = t1;
       ym2612_run(system_clock);
+      t1 = esp_timer_get_time();
+      prof_ym2612 += t1 - t0;
     }
 
     /* Video */
-    if (drawFrame && scan_line < screen_height)
+    if (drawFrame && scan_line < screen_height) {
+      t0 = esp_timer_get_time();
       gwenesis_vdp_render_line(scan_line); /* render scan_line */
+      t1 = esp_timer_get_time();
+      prof_vdp += t1 - t0;
+    }
 
     // On these lines, the line counter interrupt is reloaded
     if ((scan_line == 0) || (scan_line > screen_height)) {
@@ -295,13 +357,21 @@ void IRAM_ATTR run_genesis_rom() {
    * it completes the missing audio sample for accurate audio mode
    */
   if (GWENESIS_AUDIO_ACCURATE == 1 && sound_enabled) {
+    t0 = esp_timer_get_time();
     gwenesis_SN76489_run(system_clock);
+    t1 = esp_timer_get_time();
+    prof_sn76489 += t1 - t0;
+
+    t0 = t1;
     ym2612_run(system_clock);
+    t1 = esp_timer_get_time();
+    prof_ym2612 += t1 - t0;
   }
 
   // reset m68k cycles to the begin of next frame cycle
   m68k->cycles -= system_clock;
 
+  t0 = esp_timer_get_time();
   if (drawFrame) {
     // copy the palette
     memcpy(palette, CRAM565, PALETTE_SIZE * sizeof(uint16_t));
@@ -316,7 +386,10 @@ void IRAM_ATTR run_genesis_rom() {
       : BoxEmu::get().frame_buffer0();
     gwenesis_vdp_set_buffer(frame_buffer);
   }
+  t1 = esp_timer_get_time();
+  uint64_t prof_frame_push = t1 - t0;
 
+  t0 = esp_timer_get_time();
   if (sound_enabled) {
     // push the audio buffer to the audio task
     int audio_len = std::max(sn76489_index, ym2612_index);
@@ -335,11 +408,29 @@ void IRAM_ATTR run_genesis_rom() {
     }
     BoxEmu::get().play_audio((uint8_t*)gwenesis_ym2612_buffer, audio_len * sizeof(int16_t));
   }
+  t1 = esp_timer_get_time();
+  uint64_t prof_audio_mix = t1 - t0;
 
   // manage statistics
   auto end = esp_timer_get_time();
   uint64_t elapsed = end - start;
   update_frame_time(elapsed);
+
+  // accumulate profiling data
+  g_profile.m68k_us += prof_m68k;
+  g_profile.z80_us += prof_z80;
+  g_profile.vdp_us += prof_vdp;
+  g_profile.ym2612_us += prof_ym2612;
+  g_profile.sn76489_us += prof_sn76489;
+  g_profile.audio_mix_us += prof_audio_mix;
+  g_profile.frame_push_us += prof_frame_push;
+  g_profile.input_us += prof_input;
+  g_profile.total_us += elapsed;
+  g_profile.frame_count++;
+  if (g_profile.frame_count >= PROFILE_INTERVAL_FRAMES) {
+    g_profile.print();
+    g_profile.reset();
+  }
   static constexpr uint64_t max_frame_time = 1000000 / 60;
   if (elapsed < max_frame_time) {
     auto sleep_time = (max_frame_time - elapsed) / 1e3;
