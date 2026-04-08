@@ -4,6 +4,11 @@ cmake_minimum_required(VERSION 3.15)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
+# Board target: ESP32-P4 = Waveshare board
+if(IDF_TARGET STREQUAL "esp32p4")
+  add_compile_definitions(BOARD_WAVESHARE_P4)
+endif()
+
 # add the component directories that we want to use
 set(EXTRA_COMPONENT_DIRS
   # "components/espp/components"
@@ -81,12 +86,21 @@ set(EMULATOR_COMPONENTS
   ${DOOM_COMPONENTS}
   )
 
-set(
-  COMPONENTS
-  "main esptool_py esp_lcd esp_psram task format display display_drivers monitor timer ${EMULATOR_COMPONENTS} box-emu gui menu"
-  CACHE STRING
-  "List of components to include"
-  )
+if(IDF_TARGET STREQUAL "esp32p4")
+  set(
+    COMPONENTS
+    "main esptool_py esp_lcd esp_psram task format display monitor timer ${EMULATOR_COMPONENTS} box-emu gui menu waveshare-p4-bsp"
+    CACHE STRING
+    "List of components to include"
+    )
+else()
+  set(
+    COMPONENTS
+    "main esptool_py esp_lcd esp_psram task format display display_drivers monitor timer ${EMULATOR_COMPONENTS} box-emu gui menu"
+    CACHE STRING
+    "List of components to include"
+    )
+endif()
 
 project(esp-box-emu)
 

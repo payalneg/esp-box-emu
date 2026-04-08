@@ -14,6 +14,7 @@ target_compile_options(${COMPONENT_LIB} PRIVATE
     -Wno-unused-but-set-variable
     -Wno-unused-variable
     -Wno-register
+    -Wno-error=sizeof-pointer-memaccess
     -DBPS16 -DUNIX -DLSB_FIRST -DNARROW -O2
 )
 file(GLOB_RECURSE c_sources "fmsx/src/*.c")

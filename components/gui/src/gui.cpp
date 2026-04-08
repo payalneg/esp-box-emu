@@ -387,6 +387,7 @@ void Gui::on_battery(const std::vector<uint8_t>& data) {
 }
 
 void Gui::toggle_usb() {
+#ifndef BOARD_WAVESHARE_P4
   fmt::print("Toggling USB\n");
   auto &emu = BoxEmu::get();
   // toggle the usb
@@ -401,6 +402,7 @@ void Gui::toggle_usb() {
   } else {
     lv_label_set_text(ui_usb_label, "Disabled");
   }
+#endif
 }
 
 void Gui::freeze_focus() {

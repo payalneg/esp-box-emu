@@ -6,6 +6,7 @@ idf_component_register(
   )
 target_compile_options(${COMPONENT_LIB} PRIVATE
     -Wno-error=address
+    -Wno-error=sizeof-pointer-memaccess
     -Wno-misleading-indentation
     -Wno-format-overflow
     -Wno-char-subscripts

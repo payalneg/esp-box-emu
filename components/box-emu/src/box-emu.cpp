@@ -1,13 +1,23 @@
 #include "box-emu.hpp"
 
+#ifdef BOARD_WAVESHARE_P4
+#include <driver/sdmmc_host.h>
+#include "sd_pwr_ctrl_by_on_chip_ldo.h"
+#endif
+
 BoxEmu::BoxEmu() : espp::BaseComponent("BoxEmu") {
+#ifndef BOARD_WAVESHARE_P4
   detect();
+#else
+  version_ = Version::UNKNOWN;
+#endif
 }
 
 BoxEmu::Version BoxEmu::version() const {
   return version_;
 }
 
+#ifndef BOARD_WAVESHARE_P4
 void BoxEmu::detect() {
   bool version0_found = external_i2c_.probe_device(version0::input_address);
   bool version1_found = external_i2c_.probe_device(version1::input_address);
@@ -35,6 +45,7 @@ espp::I2c &BoxEmu::internal_i2c() {
 espp::I2c &BoxEmu::external_i2c() {
   return external_i2c_;
 }
+#endif // !BOARD_WAVESHARE_P4
 
 bool BoxEmu::initialize_box() {
   logger_.info("Initializing underlying BSP");
@@ -61,6 +72,7 @@ bool BoxEmu::initialize_box() {
     return false;
   }
 
+#ifndef BOARD_WAVESHARE_P4
   // initialize the mute button to broadcast the mute state
   logger_.info("Initializing mute button");
   mute_button_ = std::make_shared<espp::Button>(espp::Button::Config{
@@ -91,6 +103,7 @@ bool BoxEmu::initialize_box() {
   // update the mute state (since it's a flip-flop and may have been set if we
   // restarted without power loss)
   Bsp::get().mute(mute_button_->is_pressed());
+#endif // !BOARD_WAVESHARE_P4
   return true;
 }
 
@@ -107,27 +120,47 @@ bool BoxEmu::initialize_sdcard() {
   logger_.info("Initializing SD card");
 
   esp_err_t ret;
-  // Options for mounting the filesystem. If format_if_mount_failed is set to
-  // true, SD card will be partitioned and formatted in case when mounting
-  // fails.
   esp_vfs_fat_sdmmc_mount_config_t mount_config;
   memset(&mount_config, 0, sizeof(mount_config));
   mount_config.format_if_mount_failed = false;
   mount_config.max_files = 5;
   mount_config.allocation_unit_size = 2 * 1024;
 
-  // Use settings defined above to initialize SD card and mount FAT filesystem.
-  // Note: esp_vfs_fat_sdmmc/sdspi_mount is all-in-one convenience functions.
-  // Please check its source code and implement error recovery when developing
-  // production applications.
+#ifdef BOARD_WAVESHARE_P4
+  // SDMMC 4-bit mode for Waveshare ESP32-P4
+  logger_.debug("Using SDMMC peripheral");
+
+  sdmmc_host_t host = SDMMC_HOST_DEFAULT();
+  host.slot = SDMMC_HOST_SLOT_0;
+  host.max_freq_khz = SDMMC_FREQ_HIGHSPEED;
+
+  // Power control via on-chip LDO
+  sd_pwr_ctrl_ldo_config_t ldo_config = {
+      .ldo_chan_id = 4,
+  };
+  sd_pwr_ctrl_handle_t pwr_ctrl_handle = NULL;
+  ret = sd_pwr_ctrl_new_on_chip_ldo(&ldo_config, &pwr_ctrl_handle);
+  if (ret != ESP_OK) {
+    logger_.error("Failed to create on-chip LDO power control: {}", esp_err_to_name(ret));
+    return false;
+  }
+  host.pwr_ctrl_handle = pwr_ctrl_handle;
+
+  const sdmmc_slot_config_t slot_config = {
+      .cd = SDMMC_SLOT_NO_CD,
+      .wp = SDMMC_SLOT_NO_WP,
+      .width = 4,
+      .flags = 0,
+  };
+
+  logger_.debug("Mounting filesystem");
+  ret = esp_vfs_fat_sdmmc_mount(mount_point, &host, &slot_config, &mount_config, &sdcard_);
+
+#else // ESP32-S3 SPI SD card
   logger_.debug("Using SPI peripheral");
 
-  // By default, SD card frequency is initialized to SDMMC_FREQ_DEFAULT (20MHz)
-  // For setting a specific frequency, use host.max_freq_khz (range 400kHz - 20MHz for SDSPI)
-  // Example: for fixed frequency of 10MHz, use host.max_freq_khz = 10000;
   sdmmc_host_t host = SDSPI_HOST_DEFAULT();
   host.slot = sdcard_spi_num;
-  // host.max_freq_khz = 20 * 1000;
 
   spi_bus_config_t bus_cfg;
   memset(&bus_cfg, 0, sizeof(bus_cfg));
@@ -144,19 +177,17 @@ bool BoxEmu::initialize_sdcard() {
     return false;
   }
 
-  // This initializes the slot without card detect (CD) and write protect (WP) signals.
-  // Modify slot_config.gpio_cd and slot_config.gpio_wp if your board has these signals.
   sdspi_device_config_t slot_config = SDSPI_DEVICE_CONFIG_DEFAULT();
   slot_config.gpio_cs = sdcard_cs;
   slot_config.host_id = host_id;
 
   logger_.debug("Mounting filesystem");
   ret = esp_vfs_fat_sdspi_mount(mount_point, &host, &slot_config, &mount_config, &sdcard_);
+#endif // BOARD_WAVESHARE_P4
 
   if (ret != ESP_OK) {
     if (ret == ESP_FAIL) {
-      logger_.error("Failed to mount filesystem. "
-                    "If you want the card to be formatted, set the CONFIG_EXAMPLE_FORMAT_IF_MOUNT_FAILED menuconfig option.");
+      logger_.error("Failed to mount filesystem.");
       return false;
     } else {
       logger_.error("Failed to initialize the card ({}). "
@@ -167,8 +198,6 @@ bool BoxEmu::initialize_sdcard() {
   }
 
   logger_.info("Filesystem mounted");
-
-  // Card has been initialized, print its properties
   sdmmc_card_print_info(stdout, sdcard_);
 
   return true;
@@ -237,6 +266,20 @@ uint8_t *BoxEmu::romdata() const {
 // Gamepad
 /////////////////////////////////////////////////////////////////////////////
 
+#ifdef BOARD_WAVESHARE_P4
+bool BoxEmu::initialize_gamepad() {
+  logger_.warn("No gamepad hardware on this board");
+  return false;
+}
+
+GamepadState BoxEmu::gamepad_state() {
+  return GamepadState{};
+}
+
+std::shared_ptr<espp::KeypadInput> BoxEmu::keypad() const {
+  return nullptr;
+}
+#else // !BOARD_WAVESHARE_P4
 bool BoxEmu::initialize_gamepad() {
   logger_.info("Initializing gamepad");
   if (version_ == BoxEmu::Version::V0) {
@@ -335,11 +378,13 @@ void BoxEmu::keypad_read(bool *up, bool *down, bool *left, bool *right, bool *en
 std::shared_ptr<espp::KeypadInput> BoxEmu::keypad() const {
   return keypad_;
 }
+#endif // !BOARD_WAVESHARE_P4
 
 /////////////////////////////////////////////////////////////////////////////
 // Battery
 /////////////////////////////////////////////////////////////////////////////
 
+#ifndef BOARD_WAVESHARE_P4
 bool BoxEmu::initialize_battery() {
   if (version_ == BoxEmu::Version::V0) {
     logger_.warn("Battery not supported on version 0");
@@ -448,6 +493,7 @@ bool BoxEmu::initialize_battery() {
 std::shared_ptr<espp::Max1704x> BoxEmu::battery() const {
   return battery_;
 }
+#endif // !BOARD_WAVESHARE_P4
 
 /////////////////////////////////////////////////////////////////////////////
 // Video
@@ -518,6 +564,12 @@ void BoxEmu::video_setting(const VideoSetting setting) {
 // Haptic Motor
 /////////////////////////////////////////////////////////////////////////////
 
+#ifdef BOARD_WAVESHARE_P4
+bool BoxEmu::initialize_haptics() { return false; }
+void BoxEmu::play_haptic_effect() {}
+void BoxEmu::play_haptic_effect(int) {}
+void BoxEmu::set_haptic_effect(int) {}
+#else
 bool BoxEmu::initialize_haptics() {
   if (haptic_motor_) {
     logger_.error("Haptics already initialized!");
@@ -574,11 +626,13 @@ void BoxEmu::set_haptic_effect(int effect) {
   haptic_motor_->set_waveform(0, (espp::Drv2605::Waveform)(effect), ec);
   haptic_motor_->set_waveform(1, espp::Drv2605::Waveform::END, ec);
 }
+#endif // !BOARD_WAVESHARE_P4
 
 /////////////////////////////////////////////////////////////////////////////
 // USB
 /////////////////////////////////////////////////////////////////////////////
 
+#ifndef BOARD_WAVESHARE_P4
 #define TUSB_DESC_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_MSC_DESC_LEN)
 
 enum {
@@ -726,6 +780,7 @@ bool BoxEmu::deinitialize_usb() {
   usb_new_phy(&phy_conf, &jtag_phy_);
   return true;
 }
+#endif // !BOARD_WAVESHARE_P4
 
 /////////////////////////////////////////////////////////////////////////////
 // Static Video Task:

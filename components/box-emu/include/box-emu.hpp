@@ -7,6 +7,9 @@
 #include <esp_vfs_fat.h>
 #include <sdmmc_cmd.h>
 
+#ifdef BOARD_WAVESHARE_P4
+#include "waveshare-p4-bsp.hpp"
+#else
 #include <hal/usb_phy_types.h>
 #include <esp_private/usb_phy.h>
 
@@ -17,18 +20,26 @@
 #include <tinyusb_default_config.h>
 
 #include "esp-box.hpp"
+#endif // BOARD_WAVESHARE_P4
+
 #include "event_manager.hpp"
 
+#ifndef BOARD_WAVESHARE_P4
 #include "aw9523.hpp"
+#endif
 #include "base_component.hpp"
+#ifndef BOARD_WAVESHARE_P4
 #include "button.hpp"
 #include "drv2605.hpp"
+#endif
 #include "events.hpp"
 #include "high_resolution_timer.hpp"
 #include "keypad_input.hpp"
+#ifndef BOARD_WAVESHARE_P4
 #include "max1704x.hpp"
 #include "mcp23x17.hpp"
 #include "oneshot_adc.hpp"
+#endif
 #include "serialization.hpp"
 #include "task.hpp"
 #include "timer.hpp"
@@ -45,7 +56,11 @@ public:
 
   // Define the BSP class for easier access, and potential ability to change the
   // BSP if we want to support other targets.
+#ifdef BOARD_WAVESHARE_P4
+  using Bsp = WaveshareP4Bsp;
+#else
   using Bsp = espp::EspBox;
+#endif
 
   // Wrap some of the EspBox defines / methods for easier access and to remove
   // dependency on EspBox from other components
@@ -100,6 +115,7 @@ public:
   /// \see Version
   Version version() const;
 
+#ifndef BOARD_WAVESHARE_P4
   /// Get a reference to the internal I2C bus
   /// \return A reference to the internal I2C bus
   /// \note The internal I2C bus is used for the touchscreen and audio codec
@@ -109,6 +125,7 @@ public:
   /// \return A reference to the external I2C bus
   /// \note The external I2C bus is used for the gamepad functionality
   espp::I2c &external_i2c();
+#endif
 
   /// Initialize the EspBox hardware
   /// \return True if the initialization was successful, false otherwise
@@ -138,17 +155,21 @@ public:
   /////////////////////////////////////////////////////////////////////////////
 
   bool initialize_gamepad();
-  bool update_gamepad_state();
   GamepadState gamepad_state();
-  void keypad_read(bool *up, bool *down, bool *left, bool *right, bool *enter, bool *escape);
   std::shared_ptr<espp::KeypadInput> keypad() const;
+#ifndef BOARD_WAVESHARE_P4
+  bool update_gamepad_state();
+  void keypad_read(bool *up, bool *down, bool *left, bool *right, bool *enter, bool *escape);
+#endif
 
+#ifndef BOARD_WAVESHARE_P4
   /////////////////////////////////////////////////////////////////////////////
   // Battery
   /////////////////////////////////////////////////////////////////////////////
 
   bool initialize_battery();
   std::shared_ptr<espp::Max1704x> battery() const;
+#endif
 
   /////////////////////////////////////////////////////////////////////////////
   // Video
@@ -169,11 +190,14 @@ public:
   /////////////////////////////////////////////////////////////////////////////
 
   bool initialize_haptics();
-  std::shared_ptr<espp::Drv2605> haptics() const;
   void play_haptic_effect();
   void play_haptic_effect(int effect);
   void set_haptic_effect(int effect);
+#ifndef BOARD_WAVESHARE_P4
+  std::shared_ptr<espp::Drv2605> haptics() const;
+#endif
 
+#ifndef BOARD_WAVESHARE_P4
   /////////////////////////////////////////////////////////////////////////////
   // USB
   /////////////////////////////////////////////////////////////////////////////
@@ -181,10 +205,13 @@ public:
   bool initialize_usb();
   bool deinitialize_usb();
   bool is_usb_enabled() const;
+#endif
 
 protected:
   BoxEmu();
+#ifndef BOARD_WAVESHARE_P4
   void detect();
+#endif
 
   bool has_palette() const;
   bool is_native() const;
@@ -192,6 +219,7 @@ protected:
   int y_offset() const;
   bool video_task_callback(std::mutex &m, std::condition_variable &cv, bool &task_notified);
 
+#ifndef BOARD_WAVESHARE_P4
   class InputBase {
   public:
     virtual uint16_t get_pins(std::error_code& ec) = 0;
@@ -242,7 +270,9 @@ protected:
   protected:
     std::shared_ptr<InputDriver> input_driver;
   };
+#endif // !BOARD_WAVESHARE_P4 (InputBase/Input/version structs)
 
+#ifndef BOARD_WAVESHARE_P4
   struct version0 {
     using InputDriver = espp::Mcp23x17;
     typedef Input<version0, InputDriver> InputType;
@@ -301,28 +331,35 @@ protected:
     static constexpr adc_channel_t BATTERY_ADC_CHANNEL = ADC_CHANNEL_3;
   };
 
+  // version structs end
+#endif // !BOARD_WAVESHARE_P4
+
+#ifndef BOARD_WAVESHARE_P4
   // external I2c (peripherals)
   static constexpr auto external_i2c_port = I2C_NUM_1;
   static constexpr auto external_i2c_clock_speed = 400 * 1000;
   static constexpr gpio_num_t external_i2c_sda = GPIO_NUM_41;
   static constexpr gpio_num_t external_i2c_scl = GPIO_NUM_40;
 
-  // uSD card
+  // uSD card (SPI)
   static constexpr gpio_num_t sdcard_cs = GPIO_NUM_10;
   static constexpr gpio_num_t sdcard_mosi = GPIO_NUM_11;
   static constexpr gpio_num_t sdcard_miso = GPIO_NUM_13;
   static constexpr gpio_num_t sdcard_sclk = GPIO_NUM_12;
   static constexpr auto sdcard_spi_num = SPI3_HOST;
+#endif
 
   static constexpr int num_rows_in_framebuffer = 30;
 
   Version version_{Version::UNKNOWN};
 
+#ifndef BOARD_WAVESHARE_P4
   espp::I2c external_i2c_{{.port = external_i2c_port,
         .sda_io_num = external_i2c_sda,
         .scl_io_num = external_i2c_scl,
         .sda_pullup_en = GPIO_PULLUP_ENABLE,
         .scl_pullup_en = GPIO_PULLUP_ENABLE}};
+#endif
 
   // sdcard
   sdmmc_card_t *sdcard_{nullptr};
@@ -330,23 +367,29 @@ protected:
   // memory
   uint8_t *romdata_{nullptr};
 
+#ifndef BOARD_WAVESHARE_P4
   // audio
   std::shared_ptr<espp::Button> mute_button_;
+#endif
 
   // gamepad
+  std::shared_ptr<espp::KeypadInput> keypad_;
+#ifndef BOARD_WAVESHARE_P4
   std::atomic<bool> can_read_gamepad_{true};
   std::recursive_mutex gamepad_state_mutex_;
   GamepadState gamepad_state_;
   std::shared_ptr<InputBase> input_;
-  std::shared_ptr<espp::KeypadInput> keypad_;
   std::shared_ptr<espp::HighResolutionTimer> input_timer_;
+#endif
 
+#ifndef BOARD_WAVESHARE_P4
   // battery
   std::atomic<bool> battery_comms_good_{true};
   std::shared_ptr<espp::Max1704x> battery_{nullptr};
   std::shared_ptr<espp::OneshotAdc> adc_{nullptr};
   std::shared_ptr<espp::HighResolutionTimer> battery_task_;
   std::vector<espp::AdcConfig> channels;
+#endif
 
   // video
   std::atomic<VideoSetting> video_setting_{VideoSetting::FIT};
@@ -363,6 +406,7 @@ protected:
   const uint16_t* palette_{nullptr};
   size_t palette_size_{256};
 
+#ifndef BOARD_WAVESHARE_P4
   // haptics
   std::shared_ptr<espp::Drv2605> haptic_motor_{nullptr};
 
@@ -370,6 +414,7 @@ protected:
   std::atomic<bool> usb_enabled_{false};
   usb_phy_handle_t jtag_phy_;
   tinyusb_msc_storage_handle_t msc_storage_handle_{nullptr};
+#endif
 };
 
 // for libfmt printing of the BoxEmu::Version enum

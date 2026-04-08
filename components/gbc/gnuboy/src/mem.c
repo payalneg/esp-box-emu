@@ -513,13 +513,13 @@ void mem_write(int a, byte b)
 		__asm__("nop");
 		__asm__("nop");
 		__asm__("nop");
-		__asm__("memw");
+		__asm__ __volatile__("fence" ::: "memory");
 		ram.sbank[mbc.rambank][a & 0x1FFF] = b;
 		__asm__("nop");
 		__asm__("nop");
 		__asm__("nop");
 		__asm__("nop");
-		__asm__("memw");
+		__asm__ __volatile__("fence" ::: "memory");
 
 		ram.sram_dirty = 1;
 		//printf("mem_write: bank=%d, sram %p=0x%d\n", mbc.rambank, (void*)(a & 0x1fff), b);
@@ -602,7 +602,7 @@ byte mem_read(int a)
 		__asm__("nop");
 		__asm__("nop");
 		__asm__("nop");
-		__asm__("memw");
+		__asm__ __volatile__("fence" ::: "memory");
 		//printf("mem_read: bank=%d, sram %p=0x%d\n", mbc.rambank, (void*)(a & 0x1fff), ram.sbank[mbc.rambank][a & 0x1FFF]);
 		return ram.sbank[mbc.rambank][a & 0x1FFF];
 		case 0xC:
