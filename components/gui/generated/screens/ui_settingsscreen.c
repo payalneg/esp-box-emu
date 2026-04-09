@@ -250,11 +250,8 @@ lv_obj_set_align( ui_settingsscreen_Label8, LV_ALIGN_CENTER );
 lv_label_set_text(ui_settingsscreen_Label8, LV_SYMBOL_PLAY);
 
 ui_usb_panel = lv_obj_create(ui_settingspanel);
-lv_obj_set_height( ui_usb_panel, 100);
-lv_obj_set_width( ui_usb_panel, lv_pct(100));
-lv_obj_set_x( ui_usb_panel, 0 );
-lv_obj_set_y( ui_usb_panel, 360 );
-lv_obj_set_align( ui_usb_panel, LV_ALIGN_TOP_MID );
+lv_obj_set_size( ui_usb_panel, 0, 0);
+lv_obj_add_flag( ui_usb_panel, LV_OBJ_FLAG_HIDDEN );
 lv_obj_remove_flag( ui_usb_panel, LV_OBJ_FLAG_SCROLLABLE );    /// Flags
 
 ui_settingsscreen_Label9 = lv_label_create(ui_usb_panel);

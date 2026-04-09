@@ -69,6 +69,10 @@ extern "C" void app_main(void) {
     logger.warn("This may happen if the gamepad is not connected.");
   }
 
+  if (!emu.initialize_usb()) {
+    logger.warn("Failed to initialize USB MSC!");
+  }
+
   logger.info("initializing gui...");
 
   auto display = BoxEmu::Bsp::get().display();

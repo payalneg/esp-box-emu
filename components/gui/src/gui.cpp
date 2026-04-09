@@ -176,9 +176,6 @@ void Gui::init_ui() {
   lv_obj_add_event_cb(ui_hapticupbutton, &Gui::event_callback, LV_EVENT_PRESSED, static_cast<void*>(this));
   lv_obj_add_event_cb(ui_hapticplaybutton, &Gui::event_callback, LV_EVENT_PRESSED, static_cast<void*>(this));
 
-  // usb button
-  lv_obj_add_event_cb(ui_usb_button, &Gui::event_callback, LV_EVENT_PRESSED, static_cast<void*>(this));
-
   // now do the same events for all the same buttons but for the LV_EVENT_KEY
   lv_obj_add_event_cb(ui_settingsbutton, &Gui::event_callback, LV_EVENT_KEY, static_cast<void*>(this));
   lv_obj_add_event_cb(ui_playbutton, &Gui::event_callback, LV_EVENT_KEY, static_cast<void*>(this));
@@ -191,7 +188,6 @@ void Gui::init_ui() {
   lv_obj_add_event_cb(ui_hapticdownbutton, &Gui::event_callback, LV_EVENT_KEY, static_cast<void*>(this));
   lv_obj_add_event_cb(ui_hapticupbutton, &Gui::event_callback, LV_EVENT_KEY, static_cast<void*>(this));
   lv_obj_add_event_cb(ui_hapticplaybutton, &Gui::event_callback, LV_EVENT_KEY, static_cast<void*>(this));
-  lv_obj_add_event_cb(ui_usb_button, &Gui::event_callback, LV_EVENT_KEY, static_cast<void*>(this));
 
   // ensure the waveform is set and the ui is updated
   set_haptic_waveform(haptic_waveform_);
@@ -208,7 +204,6 @@ void Gui::init_ui() {
   lv_group_add_obj(settings_screen_group_, ui_hapticdownbutton);
   lv_group_add_obj(settings_screen_group_, ui_hapticupbutton);
   lv_group_add_obj(settings_screen_group_, ui_hapticplaybutton);
-  lv_group_add_obj(settings_screen_group_, ui_usb_button);
 
   // set the focused style for all the buttons to have a red border
   lv_style_init(&button_style_);
@@ -227,7 +222,6 @@ void Gui::init_ui() {
   lv_obj_add_style(ui_hapticdownbutton, &button_style_, LV_STATE_FOCUSED);
   lv_obj_add_style(ui_hapticplaybutton, &button_style_, LV_STATE_FOCUSED);
   lv_obj_add_style(ui_videosettingdropdown, &button_style_, LV_STATE_FOCUSED);
-  lv_obj_add_style(ui_usb_button, &button_style_, LV_STATE_FOCUSED);
 
   update_rom_list();
 
@@ -335,11 +329,6 @@ void Gui::on_pressed(lv_event_t *e) {
   bool is_close_button = (target == ui_closebutton);
   if (is_close_button) {
     focus_rommenu();
-    return;
-  }
-  bool is_usb_button = (target == ui_usb_button);
-  if (is_usb_button) {
-    toggle_usb();
     return;
   }
 }
