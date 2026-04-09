@@ -284,36 +284,41 @@ bool WaveshareP4Bsp::initialize_display(size_t pixel_buffer_size) {
   memset(frame_buffer0_, 0, fb_size);
   memset(frame_buffer1_, 0, fb_size);
 
-  // Allocate a rotation scratch buffer (for LVGL flush — max strip height)
-  // LVGL sends strips of lcd_width() * buffer_height pixels
+  // Allocate rotation scratch buffer in internal SRAM for fast writes
   size_t rot_buf_size = pixel_buffer_size * sizeof(Pixel);
-  auto *rot_buf = (Pixel *)heap_caps_malloc(rot_buf_size, MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM);
+  auto *rot_buf = (Pixel *)heap_caps_malloc(rot_buf_size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  if (!rot_buf) {
+    // Fallback to PSRAM if SRAM not available
+    rot_buf = (Pixel *)heap_caps_malloc(rot_buf_size, MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM);
+  }
   assert(rot_buf && "Failed to allocate rotation buffer");
   rot_buf_ = rot_buf;
 
   // Flush callback: rotate 90° CW from landscape (800x480) to portrait (480x800)
-  // Landscape (lx, ly) → Portrait (PANEL_V_RES-1-lx, ly)  ... 90° CCW
-  // Or: Portrait (ly, PANEL_H_RES-1-lx) ... depends on desired orientation
-  // 90° CW: landscape (lx, ly) → portrait_x = (PANEL_H_RES-1) - ly, portrait_y = lx
+  // Uses tile-based rotation for cache-friendly access patterns.
   auto panel = panel_handle_;
   auto flush_fn = [panel, rot_buf](lv_display_t *disp, const lv_area_t *area, uint8_t *color_map) {
     int x1 = area->x1;
     int y1 = area->y1;
-    int x2 = area->x2;
-    int y2 = area->y2;
-    int w = x2 - x1 + 1;
-    int h = y2 - y1 + 1;
+    int w = area->x2 - x1 + 1;
+    int h = area->y2 - y1 + 1;
     auto *src = (Pixel *)color_map;
 
     // Rotate 90° CW: landscape (lx, ly) → portrait (PANEL_H_RES-1-ly, lx)
-    // Rotated rect in portrait: x_start = PANEL_H_RES-1-y2, y_start = x1, width = h, height = w
-    int px_start = PANEL_H_RES - 1 - y2;
+    int px_start = PANEL_H_RES - 1 - area->y2;
     int py_start = x1;
-    for (int ly = 0; ly < h; ly++) {
-      for (int lx = 0; lx < w; lx++) {
-        int dst_x = (h - 1 - ly);
-        int dst_y = lx;
-        rot_buf[dst_y * h + dst_x] = src[ly * w + lx];
+
+    // Tile-based rotation: process in 8x8 tiles for cache locality
+    constexpr int TILE = 8;
+    for (int ty = 0; ty < h; ty += TILE) {
+      int th = (ty + TILE <= h) ? TILE : h - ty;
+      for (int tx = 0; tx < w; tx += TILE) {
+        int tw = (tx + TILE <= w) ? TILE : w - tx;
+        for (int ly = 0; ly < th; ly++) {
+          for (int lx = 0; lx < tw; lx++) {
+            rot_buf[(tx + lx) * h + (h - 1 - (ty + ly))] = src[(ty + ly) * w + (tx + lx)];
+          }
+        }
       }
     }
     esp_lcd_panel_draw_bitmap(panel, px_start, py_start, px_start + h, py_start + w, rot_buf);

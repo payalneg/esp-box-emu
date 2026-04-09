@@ -3,6 +3,8 @@
 #ifdef BOARD_WAVESHARE_P4
 #include <driver/sdmmc_host.h>
 #include "sd_pwr_ctrl_by_on_chip_ldo.h"
+#include <esp_cache.h>
+#include <esp_private/esp_cache_private.h>
 #endif
 
 BoxEmu::BoxEmu() : espp::BaseComponent("BoxEmu") {
@@ -507,6 +509,21 @@ bool BoxEmu::initialize_video() {
 
   logger_.info("initializing video task");
 
+#ifdef BOARD_WAVESHARE_P4
+  // Register PPA SRM (Scale-Rotate-Mirror) client for hardware scaling
+  ppa_client_config_t ppa_cfg = {
+      .oper_type = PPA_OPERATION_SRM,
+      .max_pending_trans_num = 1,
+  };
+  auto err = ppa_register_client(&ppa_cfg, &ppa_srm_handle_);
+  if (err != ESP_OK) {
+    logger_.error("Failed to register PPA SRM client: {}", esp_err_to_name(err));
+    ppa_srm_handle_ = nullptr;
+  } else {
+    logger_.info("PPA SRM client registered");
+  }
+#endif
+
   video_queue_ = xQueueCreate(1, sizeof(uint16_t*));
   using namespace std::placeholders;
   video_task_ = espp::Task::make_unique({
@@ -537,6 +554,9 @@ void BoxEmu::native_size(size_t width, size_t height, int pitch) {
   native_width_ = width;
   native_height_ = height;
   native_pitch_ = pitch == -1 ? width : pitch;
+  // Integer 2x scaling, centered on LCD
+  display_width_ = width * 2;
+  display_height_ = height * 2;
 }
 
 void BoxEmu::palette(const uint16_t *palette, size_t size) {
@@ -881,64 +901,44 @@ bool BoxEmu::video_task_callback(std::mutex &m, std::condition_variable& cv, boo
       }
     }
   } else {
-    // we are scaling the screen (and possibly using a custom palette)
-    // if we don't have a custom palette, we just need to scale/fill the frame
-    [[maybe_unused]] float y_scale = (float)display_height_/native_height_;
-    float x_scale = (float)display_width_/native_width_;
-    float inv_x_scale = (float)native_width_/display_width_;
-    float inv_y_scale = (float)native_height_/display_height_;
-    int max_y = Bsp::lcd_height();
-    int max_x = std::clamp<int>(x_scale * native_width_, 0, Bsp::lcd_width());
+    // Integer 2x scaling: each source pixel becomes a 2x2 block
+    int out_w = display_width_;
+    int out_h = display_height_;
     if (has_palette()) {
-      for (int y=0; y<max_y; y+=num_lines_to_write) {
-        // each iteration of the loop, we swap the vram index so that we can
-        // write to the other buffer while the other one is being transmitted
+      for (int y=0; y<out_h; y+=num_lines_to_write) {
         int i = 0;
         uint16_t* _buf = (uint16_t*)((uint32_t)vram0 * (vram_index ^ 0x01) + (uint32_t)vram1 * vram_index);
         vram_index = vram_index ^ 0x01;
-        for (; i<num_lines_to_write; i++) {
-          int _y = y+i;
-          if (_y >= max_y) {
-            break;
-          }
-          int source_y = (float)_y * inv_y_scale;
-          const uint8_t* _frame = (const uint8_t*)_frame_ptr;
-          // write two pixels (32 bits) at a time because it's faster
-          for (int x=0; x<max_x/2; x++) {
-            int source_x = (float)x * 2 * inv_x_scale;
-            int src_index = source_y*native_pitch_ + source_x;
-            int dst_index = i*max_x + x * 2;
-            _buf[dst_index] = _palette[_frame[src_index] % palette_size_];
-            _buf[dst_index + 1] = _palette[_frame[src_index + 1] % palette_size_];
+        int num_lines = std::min<int>(num_lines_to_write, out_h - y);
+        const uint8_t* _frame = (const uint8_t*)_frame_ptr;
+        for (i = 0; i < num_lines; i++) {
+          int source_y = (y + i) / 2;
+          for (int x = 0; x < out_w; x += 2) {
+            int source_x = x / 2;
+            uint16_t pixel = _palette[_frame[source_y * native_pitch_ + source_x] % palette_size_];
+            _buf[i * out_w + x] = pixel;
+            _buf[i * out_w + x + 1] = pixel;
           }
         }
-        box.write_lcd_frame(0 + _x_offset, y, max_x, i, (uint8_t*)&_buf[0]);
+        box.write_lcd_frame(_x_offset, y + _y_offset, out_w, num_lines, (uint8_t*)&_buf[0]);
       }
     } else {
-      // no palette
-      for (int y=0; y<max_y; y+=num_lines_to_write) {
-        // each iteration of the loop, we swap the vram index so that we can
-        // write to the other buffer while the other one is being transmitted
+      for (int y=0; y<out_h; y+=num_lines_to_write) {
         int i = 0;
         uint16_t* _buf = (uint16_t*)((uint32_t)vram0 * (vram_index ^ 0x01) + (uint32_t)vram1 * vram_index);
         vram_index = vram_index ^ 0x01;
-        for (; i<num_lines_to_write; i++) {
-          int _y = y+i;
-          if (_y >= max_y) {
-            break;
-          }
-          int source_y = (float)_y * inv_y_scale;
-          const uint16_t* _frame = (const uint16_t*)_frame_ptr;
-          // write two pixels (32 bits) at a time because it's faster
-          for (int x=0; x<max_x/2; x++) {
-            int source_x = (float)x * 2 * inv_x_scale;
-            int src_index = source_y*native_pitch_ + source_x;
-            int dst_index = i*max_x + x * 2;
-            _buf[dst_index] = _frame[src_index];
-            _buf[dst_index + 1] = _frame[src_index + 1];
+        int num_lines = std::min<int>(num_lines_to_write, out_h - y);
+        const uint16_t* _frame = (const uint16_t*)_frame_ptr;
+        for (i = 0; i < num_lines; i++) {
+          int source_y = (y + i) / 2;
+          for (int x = 0; x < out_w; x += 2) {
+            int source_x = x / 2;
+            uint16_t pixel = _frame[source_y * native_pitch_ + source_x];
+            _buf[i * out_w + x] = pixel;
+            _buf[i * out_w + x + 1] = pixel;
           }
         }
-        box.write_lcd_frame(0 + _x_offset, y, max_x, i, (uint8_t*)&_buf[0]);
+        box.write_lcd_frame(_x_offset, y + _y_offset, out_w, num_lines, (uint8_t*)&_buf[0]);
       }
     }
   }

@@ -9,6 +9,7 @@
 
 #ifdef BOARD_WAVESHARE_P4
 #include "waveshare-p4-bsp.hpp"
+#include <driver/ppa.h>
 #else
 #include <hal/usb_phy_types.h>
 #include <esp_private/usb_phy.h>
@@ -345,7 +346,11 @@ protected:
   static constexpr auto sdcard_spi_num = SPI3_HOST;
 #endif
 
+#ifdef BOARD_WAVESHARE_P4
+  static constexpr int num_rows_in_framebuffer = 60;
+#else
   static constexpr int num_rows_in_framebuffer = 30;
+#endif
 
   Version version_{Version::UNKNOWN};
 
@@ -401,6 +406,15 @@ protected:
 
   const uint16_t* palette_{nullptr};
   size_t palette_size_{256};
+
+#ifdef BOARD_WAVESHARE_P4
+  // PPA hardware scaler
+  ppa_client_handle_t ppa_srm_handle_{nullptr};
+  uint16_t *ppa_native_buf_{nullptr};   // palette→RGB565 at native res (aligned)
+  uint16_t *ppa_scaled_buf_{nullptr};   // PPA output at display res (aligned)
+  size_t ppa_native_buf_size_{0};
+  size_t ppa_scaled_buf_size_{0};
+#endif
 
 #ifndef BOARD_WAVESHARE_P4
   // haptics

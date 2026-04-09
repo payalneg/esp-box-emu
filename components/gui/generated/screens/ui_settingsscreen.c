@@ -61,8 +61,7 @@ ui_settingspanel = lv_obj_create(ui_settingsscreen);
 lv_obj_set_height( ui_settingspanel, 330);
 lv_obj_set_width( ui_settingspanel, lv_pct(100));
 lv_obj_set_align( ui_settingspanel, LV_ALIGN_BOTTOM_MID );
-lv_obj_add_flag( ui_settingspanel, LV_OBJ_FLAG_SCROLL_ON_FOCUS | LV_OBJ_FLAG_SCROLL_ONE );   /// Flags
-lv_obj_set_scroll_dir(ui_settingspanel, LV_DIR_VER);
+lv_obj_remove_flag( ui_settingspanel, LV_OBJ_FLAG_SCROLLABLE );    /// Flags
 lv_obj_set_style_pad_left(ui_settingspanel, 0, LV_PART_MAIN| LV_STATE_DEFAULT);
 lv_obj_set_style_pad_right(ui_settingspanel, 0, LV_PART_MAIN| LV_STATE_DEFAULT);
 lv_obj_set_style_pad_top(ui_settingspanel, 0, LV_PART_MAIN| LV_STATE_DEFAULT);
@@ -130,7 +129,7 @@ ui_brightnesspanel = lv_obj_create(ui_settingspanel);
 lv_obj_set_height( ui_brightnesspanel, 100);
 lv_obj_set_width( ui_brightnesspanel, lv_pct(100));
 lv_obj_set_x( ui_brightnesspanel, 0 );
-lv_obj_set_y( ui_brightnesspanel, 120 );
+lv_obj_set_y( ui_brightnesspanel, 100 );
 lv_obj_set_align( ui_brightnesspanel, LV_ALIGN_TOP_MID );
 lv_obj_remove_flag( ui_brightnesspanel, LV_OBJ_FLAG_SCROLLABLE );    /// Flags
 
@@ -184,7 +183,7 @@ ui_hapticpanel = lv_obj_create(ui_settingspanel);
 lv_obj_set_height( ui_hapticpanel, 100);
 lv_obj_set_width( ui_hapticpanel, lv_pct(100));
 lv_obj_set_x( ui_hapticpanel, 0 );
-lv_obj_set_y( ui_hapticpanel, 240 );
+lv_obj_set_y( ui_hapticpanel, 200 );
 lv_obj_set_align( ui_hapticpanel, LV_ALIGN_TOP_MID );
 lv_obj_remove_flag( ui_hapticpanel, LV_OBJ_FLAG_SCROLLABLE );    /// Flags
 

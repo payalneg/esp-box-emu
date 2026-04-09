@@ -46,6 +46,8 @@ idf_component_register(
   "serialization"
   "statistics"
   "pool_allocator"
+  "esp_driver_ppa"
+  "esp_mm"
   ${BSP_REQUIRES}
   ${S3_ONLY_REQUIRES}
   )
