@@ -103,9 +103,12 @@ protected:
 
   virtual void set_fit_video_setting() override {
 #if defined(ENABLE_NES)
-    float x_scale = static_cast<float>(SCREEN_HEIGHT) / static_cast<float>(NES_HEIGHT);
-    int new_width = static_cast<int>(static_cast<float>(NES_WIDTH) * x_scale);
-    BoxEmu::get().display_size(new_width, SCREEN_HEIGHT);
+    float scale_x = static_cast<float>(SCREEN_WIDTH) / static_cast<float>(NES_WIDTH);
+    float scale_y = static_cast<float>(SCREEN_HEIGHT) / static_cast<float>(NES_HEIGHT);
+    float scale = std::min(scale_x, scale_y);
+    int new_width = static_cast<int>(NES_WIDTH * scale);
+    int new_height = static_cast<int>(NES_HEIGHT * scale);
+    BoxEmu::get().display_size(new_width, new_height);
 #endif
   }
 

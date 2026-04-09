@@ -557,7 +557,12 @@ VideoSetting BoxEmu::video_setting() const {
 }
 
 void BoxEmu::video_setting(const VideoSetting setting) {
+#ifdef BOARD_WAVESHARE_P4
+  // Always FIT on P4 — ignore setting changes
+  video_setting_ = VideoSetting::FIT;
+#else
   video_setting_ = setting;
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////

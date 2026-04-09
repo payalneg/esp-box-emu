@@ -126,9 +126,12 @@ protected:
     logger_.info("sms::video: fit");
     float height = info_.platform == Emulator::SEGA_MASTER_SYSTEM ? SMS_HEIGHT : GG_HEIGHT;
     float width = info_.platform == Emulator::SEGA_MASTER_SYSTEM ? SMS_WIDTH : GG_WIDTH;
-    float x_scale = static_cast<float>(SCREEN_HEIGHT) / height;
-    int new_width = static_cast<int>(width * x_scale);
-    BoxEmu::get().display_size(new_width, SCREEN_HEIGHT);
+    float scale_x = static_cast<float>(SCREEN_WIDTH) / width;
+    float scale_y = static_cast<float>(SCREEN_HEIGHT) / height;
+    float scale = std::min(scale_x, scale_y);
+    int new_width = static_cast<int>(width * scale);
+    int new_height = static_cast<int>(height * scale);
+    BoxEmu::get().display_size(new_width, new_height);
 #endif
   }
 

@@ -48,10 +48,12 @@ extern "C" void app_main(void) {
     logger.warn("This may happen if the gamepad is not connected.");
   }
 
+#ifndef BOARD_WAVESHARE_P4
   if (!emu.initialize_battery()) {
     logger.warn("Failed to initialize battery!");
     logger.warn("This may happen if the battery is not connected.");
   }
+#endif
 
   if (!emu.initialize_video()) {
     logger.error("Failed to initialize video!");
@@ -92,6 +94,20 @@ extern "C" void app_main(void) {
     emu.play_haptic_effect();
 
     gui.pause();
+
+    // Clear screen to black before launching game
+    {
+      size_t buf_size = BoxEmu::lcd_width() * 30 * sizeof(BoxEmu::Pixel);
+      auto *black_buf = (uint8_t *)heap_caps_calloc(1, buf_size, MALLOC_CAP_SPIRAM);
+      if (black_buf) {
+        auto &bsp = BoxEmu::Bsp::get();
+        for (int y = 0; y < (int)BoxEmu::lcd_height(); y += 30) {
+          int h = std::min(30, (int)BoxEmu::lcd_height() - y);
+          bsp.write_lcd_frame(0, y, BoxEmu::lcd_width(), h, black_buf);
+        }
+        free(black_buf);
+      }
+    }
 
     auto maybe_selected_rom = gui.get_selected_rom();
     if (maybe_selected_rom.has_value()) {

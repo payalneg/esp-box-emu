@@ -169,6 +169,16 @@ public:
     // handle touchpad so we can know if the user presses the menu
     auto touch = BoxEmu::Bsp::get().touchpad_data();
     bool btn_state = touch.btn_state;
+
+    // Debounce: wait for touch release before accepting new touch input
+    // (prevents immediate menu open when user lifts finger from ROM selection)
+    if (!touch_was_released_ && !btn_state) {
+      touch_was_released_ = true;
+    }
+    if (!touch_was_released_) {
+      btn_state = false;
+    }
+
     // also get the gamepad input state so we can know if the user presses the
     // start/select buttons together to bring up the menu
     auto state = BoxEmu::get().gamepad_state();
@@ -190,6 +200,8 @@ public:
       }
       // make sure to clear the screen before we resume the game
       BoxEmu::get().clear_screen();
+      // wait for touch release before resuming
+      touch_was_released_ = false;
       // only run the post_menu if we are still running
       if (running_)
         post_menu();
@@ -314,6 +326,7 @@ protected:
   }
 
   std::atomic<bool> running_{false};
+  bool touch_was_released_{false};
   size_t rom_size_bytes_{0};
   uint8_t* romdata_{nullptr};
   RomInfo info_;

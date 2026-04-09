@@ -119,8 +119,12 @@ protected:
   virtual void set_fit_video_setting() override {
 #if defined(ENABLE_GENESIS)
     logger_.info("genesis::video: fit");
-    // the genesis is already 320 px wide, don't do anything
-    BoxEmu::get().display_size(GENESIS_WIDTH, GENESIS_HEIGHT);
+    float scale_x = static_cast<float>(SCREEN_WIDTH) / static_cast<float>(GENESIS_WIDTH);
+    float scale_y = static_cast<float>(SCREEN_HEIGHT) / static_cast<float>(GENESIS_HEIGHT);
+    float scale = std::min(scale_x, scale_y);
+    int new_width = static_cast<int>(GENESIS_WIDTH * scale);
+    int new_height = static_cast<int>(GENESIS_HEIGHT * scale);
+    BoxEmu::get().display_size(new_width, new_height);
 #endif
   }
 
