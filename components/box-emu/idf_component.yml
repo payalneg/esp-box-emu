@@ -1,6 +1,7 @@
 ## IDF Component Manager Manifest File
 dependencies:
   idf: ">=5.4"
+  espressif/esp_tinyusb: ">=2.0"
   lvgl/lvgl: '>=9.2.2'
   espp/event_manager: ">=1.0"
   espp/task: ">=1.0"

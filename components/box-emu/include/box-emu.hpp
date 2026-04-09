@@ -12,15 +12,13 @@
 #else
 #include <hal/usb_phy_types.h>
 #include <esp_private/usb_phy.h>
+#include "esp-box.hpp"
+#endif // BOARD_WAVESHARE_P4
 
 #include <tinyusb.h>
 #include <class/msc/msc.h>
 #include <tinyusb_msc.h>
-
 #include <tinyusb_default_config.h>
-
-#include "esp-box.hpp"
-#endif // BOARD_WAVESHARE_P4
 
 #include "event_manager.hpp"
 
@@ -197,7 +195,6 @@ public:
   std::shared_ptr<espp::Drv2605> haptics() const;
 #endif
 
-#ifndef BOARD_WAVESHARE_P4
   /////////////////////////////////////////////////////////////////////////////
   // USB
   /////////////////////////////////////////////////////////////////////////////
@@ -205,7 +202,6 @@ public:
   bool initialize_usb();
   bool deinitialize_usb();
   bool is_usb_enabled() const;
-#endif
 
 protected:
   BoxEmu();
@@ -409,12 +405,14 @@ protected:
 #ifndef BOARD_WAVESHARE_P4
   // haptics
   std::shared_ptr<espp::Drv2605> haptic_motor_{nullptr};
+#endif
 
   // usb
   std::atomic<bool> usb_enabled_{false};
+#ifndef BOARD_WAVESHARE_P4
   usb_phy_handle_t jtag_phy_;
-  tinyusb_msc_storage_handle_t msc_storage_handle_{nullptr};
 #endif
+  tinyusb_msc_storage_handle_t msc_storage_handle_{nullptr};
 };
 
 // for libfmt printing of the BoxEmu::Version enum

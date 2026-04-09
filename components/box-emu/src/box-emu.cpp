@@ -637,7 +637,6 @@ void BoxEmu::set_haptic_effect(int effect) {
 // USB
 /////////////////////////////////////////////////////////////////////////////
 
-#ifndef BOARD_WAVESHARE_P4
 #define TUSB_DESC_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_MSC_DESC_LEN)
 
 enum {
@@ -705,8 +704,10 @@ bool BoxEmu::initialize_usb() {
     return false;
   }
 
+#ifndef BOARD_WAVESHARE_P4
   logger_.debug("Deleting JTAG PHY");
   usb_del_phy(jtag_phy_);
+#endif
 
   fmt::print("USB MSC initialization\n");
   esp_vfs_fat_mount_config_t fat_mount_config = {
@@ -777,15 +778,16 @@ bool BoxEmu::deinitialize_usb() {
     return false;
   }
   usb_enabled_ = false;
+#ifndef BOARD_WAVESHARE_P4
   // and reconnect the CDC port, see:
   // https://github.com/espressif/idf-extra-components/pull/229
   usb_phy_config_t phy_conf;
   memset(&phy_conf, 0, sizeof(phy_conf));
   phy_conf.controller = USB_PHY_CTRL_SERIAL_JTAG;
   usb_new_phy(&phy_conf, &jtag_phy_);
+#endif
   return true;
 }
-#endif // !BOARD_WAVESHARE_P4
 
 /////////////////////////////////////////////////////////////////////////////
 // Static Video Task:

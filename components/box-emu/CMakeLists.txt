@@ -14,8 +14,6 @@ elseif(IDF_TARGET STREQUAL "esp32s3")
     "button"
     "adc"
     "display_drivers"
-    "usb"
-    "esp_tinyusb"
   )
 else()
   # Fallback: try P4 path
@@ -36,6 +34,8 @@ idf_component_register(
   "esp_psram"
   "hal"
   "lvgl"
+  "usb"
+  "esp_tinyusb"
   "codec"
   "input_drivers"
   "display"

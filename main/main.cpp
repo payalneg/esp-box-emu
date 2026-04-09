@@ -15,6 +15,7 @@
 #include "gui.hpp"
 #include "heap_utils.hpp"
 #include "rom_info.hpp"
+#include "sd_ota.hpp"
 #include "statistics.hpp"
 
 using namespace std::chrono_literals;
@@ -33,7 +34,10 @@ extern "C" void app_main(void) {
     return;
   }
 
-  if (!emu.initialize_sdcard()) {
+  if (emu.initialize_sdcard()) {
+    // Check for firmware update on SD card (reboots if found)
+    check_sd_ota(BoxEmu::mount_point);
+  } else {
     logger.warn("Failed to initialize SD card!");
     logger.warn("This may happen if the SD card is not inserted.");
   }
@@ -75,6 +79,9 @@ extern "C" void app_main(void) {
       .set_waveform = [&emu](uint8_t waveform) { emu.set_haptic_effect(waveform); },
       .log_level = espp::Logger::Verbosity::WARN
     });
+
+  // Confirm OTA rollback — this app booted successfully
+  esp_ota_mark_app_valid_cancel_rollback();
 
   print_heap_state();
 
