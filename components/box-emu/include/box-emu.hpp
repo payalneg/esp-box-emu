@@ -414,6 +414,10 @@ protected:
   uint16_t *ppa_scaled_buf_{nullptr};   // PPA output at display res (aligned)
   size_t ppa_native_buf_size_{0};
   size_t ppa_scaled_buf_size_{0};
+
+  // Full-frame scale buffer for single-shot LCD write (reduces tearing)
+  uint16_t *full_frame_buf_{nullptr};
+  size_t full_frame_buf_size_{0};
 #endif
 
 #ifndef BOARD_WAVESHARE_P4

@@ -380,6 +380,50 @@ void WaveshareP4Bsp::write_lcd_frame(const uint16_t x, const uint16_t y, const u
                             px_start + height, py_start + width, rot_buf_);
 }
 
+void WaveshareP4Bsp::write_lcd_full_frame(const uint16_t x, const uint16_t y,
+                                           const uint16_t width, const uint16_t height,
+                                           const uint16_t *data) {
+  if (!panel_handle_ || !data) {
+    return;
+  }
+  // Lazy-allocate PSRAM rotation buffer (height × width because 90° CW swaps dims)
+  size_t need = (size_t)width * height * sizeof(Pixel);
+  if (!full_rot_buf_ || full_rot_buf_size_ < need) {
+    if (full_rot_buf_) heap_caps_free(full_rot_buf_);
+    full_rot_buf_ = (Pixel *)heap_caps_malloc(need, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    full_rot_buf_size_ = full_rot_buf_ ? need : 0;
+    if (!full_rot_buf_) {
+      // Fallback to strip-based write
+      write_lcd_frame(x, y, width, height, (uint8_t *)data);
+      return;
+    }
+  }
+
+  auto *src = (const Pixel *)data;
+  auto *dst = full_rot_buf_;
+
+  // Tile-based 90° CW rotation: landscape (lx, ly) → portrait (height-1-ly, lx)
+  // Output buffer layout: dst[py * height + px] where py=lx, px=height-1-ly
+  constexpr int TILE = 8;
+  for (int ty = 0; ty < height; ty += TILE) {
+    int th = (ty + TILE <= height) ? TILE : height - ty;
+    for (int tx = 0; tx < width; tx += TILE) {
+      int tw = (tx + TILE <= width) ? TILE : width - tx;
+      for (int ly = 0; ly < th; ly++) {
+        for (int lx = 0; lx < tw; lx++) {
+          dst[(tx + lx) * height + (height - 1 - (ty + ly))] =
+              src[(ty + ly) * width + (tx + lx)];
+        }
+      }
+    }
+  }
+
+  int px_start = PANEL_H_RES - 1 - (y + height - 1);
+  int py_start = x;
+  esp_lcd_panel_draw_bitmap(panel_handle_, px_start, py_start,
+                            px_start + height, py_start + width, dst);
+}
+
 // ─── Touch ───────────────────────────────────────────────────────────────────
 
 bool WaveshareP4Bsp::initialize_touch(const touch_callback_t &callback) {

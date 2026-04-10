@@ -88,9 +88,15 @@ public:
   uint8_t *frame_buffer0() const;
   uint8_t *frame_buffer1() const;
 
-  /// Write a rectangle of pixel data to the LCD
+  /// Write a rectangle of pixel data to the LCD (strip-by-strip, uses rot_buf_)
   void write_lcd_frame(const uint16_t x, const uint16_t y, const uint16_t width,
                        const uint16_t height, uint8_t *data);
+
+  /// Write a full landscape frame to the LCD in a single draw_bitmap call.
+  /// Allocates a PSRAM rotation buffer lazily. Uses tile-based rotation for
+  /// cache efficiency. Reduces tearing compared to strip-by-strip writes.
+  void write_lcd_full_frame(const uint16_t x, const uint16_t y, const uint16_t width,
+                            const uint16_t height, const uint16_t *data);
 
   /////////////////////////////////////////////////////////////////////////////
   // Touch
@@ -178,7 +184,9 @@ protected:
   std::shared_ptr<espp::Display<Pixel>> display_;
   Pixel *vram_0_{nullptr};
   Pixel *vram_1_{nullptr};
-  Pixel *rot_buf_{nullptr}; // scratch buffer for 90° rotation
+  Pixel *rot_buf_{nullptr};      // scratch buffer for strip 90° rotation
+  Pixel *full_rot_buf_{nullptr}; // PSRAM buffer for full-frame rotation
+  size_t full_rot_buf_size_{0};
   uint8_t *frame_buffer0_{nullptr};
   uint8_t *frame_buffer1_{nullptr};
   std::atomic<float> brightness_{0.0f};

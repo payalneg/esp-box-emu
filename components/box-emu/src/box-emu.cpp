@@ -901,41 +901,68 @@ bool BoxEmu::video_task_callback(std::mutex &m, std::condition_variable& cv, boo
       }
     }
   } else {
-    // Integer 2x scaling: each source pixel becomes a 2x2 block
+    // Integer 2x scaling with bilinear interpolation, strip-by-strip
+    auto avg2 = [](uint16_t a, uint16_t b) -> uint16_t {
+      return ((a & 0xF7DE) >> 1) + ((b & 0xF7DE) >> 1) + (a & b & 0x0821);
+    };
     int out_w = display_width_;
     int out_h = display_height_;
+    int src_w = native_width_;
+    int src_h = native_height_;
     if (has_palette()) {
-      for (int y=0; y<out_h; y+=num_lines_to_write) {
-        int i = 0;
+      for (int y = 0; y < out_h; y += num_lines_to_write) {
         uint16_t* _buf = (uint16_t*)((uint32_t)vram0 * (vram_index ^ 0x01) + (uint32_t)vram1 * vram_index);
         vram_index = vram_index ^ 0x01;
         int num_lines = std::min<int>(num_lines_to_write, out_h - y);
         const uint8_t* _frame = (const uint8_t*)_frame_ptr;
-        for (i = 0; i < num_lines; i++) {
-          int source_y = (y + i) / 2;
+        for (int i = 0; i < num_lines; i++) {
+          int oy = y + i;
+          int sy = oy >> 1;
+          int sy1 = sy + 1 < src_h ? sy + 1 : sy;
+          bool odd_y = oy & 1;
           for (int x = 0; x < out_w; x += 2) {
-            int source_x = x / 2;
-            uint16_t pixel = _palette[_frame[source_y * native_pitch_ + source_x] % palette_size_];
-            _buf[i * out_w + x] = pixel;
-            _buf[i * out_w + x + 1] = pixel;
+            int sx = x >> 1;
+            int sx1 = sx + 1 < src_w ? sx + 1 : sx;
+            uint16_t p00 = _palette[_frame[sy  * native_pitch_ + sx]  % palette_size_];
+            uint16_t p10 = _palette[_frame[sy  * native_pitch_ + sx1] % palette_size_];
+            if (!odd_y) {
+              _buf[i * out_w + x]     = p00;
+              _buf[i * out_w + x + 1] = avg2(p00, p10);
+            } else {
+              uint16_t p01 = _palette[_frame[sy1 * native_pitch_ + sx]  % palette_size_];
+              uint16_t p11 = _palette[_frame[sy1 * native_pitch_ + sx1] % palette_size_];
+              _buf[i * out_w + x]     = avg2(p00, p01);
+              _buf[i * out_w + x + 1] = avg2(avg2(p00, p10), avg2(p01, p11));
+            }
           }
         }
         box.write_lcd_frame(_x_offset, y + _y_offset, out_w, num_lines, (uint8_t*)&_buf[0]);
       }
     } else {
-      for (int y=0; y<out_h; y+=num_lines_to_write) {
-        int i = 0;
+      for (int y = 0; y < out_h; y += num_lines_to_write) {
         uint16_t* _buf = (uint16_t*)((uint32_t)vram0 * (vram_index ^ 0x01) + (uint32_t)vram1 * vram_index);
         vram_index = vram_index ^ 0x01;
         int num_lines = std::min<int>(num_lines_to_write, out_h - y);
         const uint16_t* _frame = (const uint16_t*)_frame_ptr;
-        for (i = 0; i < num_lines; i++) {
-          int source_y = (y + i) / 2;
+        for (int i = 0; i < num_lines; i++) {
+          int oy = y + i;
+          int sy = oy >> 1;
+          int sy1 = sy + 1 < src_h ? sy + 1 : sy;
+          bool odd_y = oy & 1;
           for (int x = 0; x < out_w; x += 2) {
-            int source_x = x / 2;
-            uint16_t pixel = _frame[source_y * native_pitch_ + source_x];
-            _buf[i * out_w + x] = pixel;
-            _buf[i * out_w + x + 1] = pixel;
+            int sx = x >> 1;
+            int sx1 = sx + 1 < src_w ? sx + 1 : sx;
+            uint16_t p00 = _frame[sy  * native_pitch_ + sx];
+            uint16_t p10 = _frame[sy  * native_pitch_ + sx1];
+            if (!odd_y) {
+              _buf[i * out_w + x]     = p00;
+              _buf[i * out_w + x + 1] = avg2(p00, p10);
+            } else {
+              uint16_t p01 = _frame[sy1 * native_pitch_ + sx];
+              uint16_t p11 = _frame[sy1 * native_pitch_ + sx1];
+              _buf[i * out_w + x]     = avg2(p00, p01);
+              _buf[i * out_w + x + 1] = avg2(avg2(p00, p10), avg2(p01, p11));
+            }
           }
         }
         box.write_lcd_frame(_x_offset, y + _y_offset, out_w, num_lines, (uint8_t*)&_buf[0]);
